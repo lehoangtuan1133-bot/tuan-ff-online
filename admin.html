@@ -1,318 +1,130 @@
 <!doctype html>
 <html lang="vi">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Admin Panel - Battle Royale 3D</title>
+<meta charset="utf-8"><title>Admin Panel</title>
 <style>
-*{box-sizing:border-box}
-body{background:#0a0e14;color:#eee;font-family:Arial,sans-serif;padding:16px;margin:0}
-h1{color:#f1c40f;font-size:24px;margin:0 0 16px}
-h2{color:#3498db;font-size:18px;margin:16px 0 8px}
-h3{color:#e74c3c;font-size:15px;margin-top:20px}
-.container{max-width:1100px;margin:auto}
-.login-box{background:#1a2533;padding:30px;border-radius:12px;max-width:400px;margin:80px auto}
-input,select{padding:10px 12px;width:100%;margin-bottom:10px;border-radius:6px;border:1px solid #444;background:#0d1622;color:#fff;font-size:14px}
-button{padding:10px 18px;background:#2ecc71;border:none;border-radius:6px;color:#fff;font-weight:bold;cursor:pointer;font-size:14px;transition:0.15s}
-button:hover{opacity:0.85}
-button:active{transform:scale(0.97)}
-.btn-danger{background:#e74c3c}
-.btn-warn{background:#f39c12}
-.btn-info{background:#3498db}
-.btn-secondary{background:#7f8c8d}
-table{width:100%;border-collapse:collapse;background:#0d1622;border-radius:8px;overflow:hidden;font-size:13px}
-th,td{padding:10px;text-align:left;border-bottom:1px solid #2a2a2a}
-th{background:#1a2533;font-weight:bold}
-.actions button{margin:2px;padding:5px 8px;font-size:11px}
+body{background:#0a0e14;color:#eee;font-family:Arial;padding:20px;margin:0}
+.container{max-width:900px;margin:auto}
+.login-box{background:#1a2533;padding:30px;border-radius:12px;max-width:400px;margin:50px auto;text-align:center}
+input{padding:12px;width:100%;margin-bottom:10px;border-radius:6px;border:1px solid #444;background:#0d1622;color:#fff;box-sizing:border-box}
+button{padding:12px 20px;background:#2ecc71;border:none;border-radius:6px;color:#fff;font-weight:bold;cursor:pointer;width:100%}
 .hidden{display:none!important}
-.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.status{padding:10px;border-radius:6px;margin-top:10px;font-weight:bold}
-.status.ok{background:#1e4d2e;color:#7dffa0}
-.status.err{background:#4d1e1e;color:#ff7d7d}
-.tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
-.tab{padding:8px 16px;background:#1a2533;border:none;color:#aaa;cursor:pointer;border-radius:6px;font-weight:bold}
-.tab.active{background:#3498db;color:#fff}
-.ban-list{background:#0d1622;padding:12px;border-radius:8px;max-height:200px;overflow-y:auto;font-family:monospace;font-size:13px}
-.ban-item{display:flex;justify-content:space-between;padding:6px 8px;border-bottom:1px solid #222}
+table{width:100%;border-collapse:collapse;background:#0d1622;margin-top:20px}
+th,td{padding:10px;border-bottom:1px solid #333;text-align:left}
+th{background:#1a2533}
+.btn-danger{background:#e74c3c;padding:5px 10px;font-size:12px;width:auto}
+.btn-info{background:#3498db;padding:5px 10px;font-size:12px;width:auto}
 </style>
 </head>
 <body>
 <div class="container">
-
-<div id="loginSection" class="login-box">
-  <h1>🛡️ ADMIN LOGIN</h1>
-  <input type="text" id="adminUsername" placeholder="Tên đăng nhập" autocomplete="username">
-  <input type="password" id="adminPassword" placeholder="Mật khẩu" autocomplete="current-password"
-         onkeydown="if(event.key==='Enter')login()">
-  <button onclick="login()" style="width:100%">Đăng nhập</button>
-  <p id="loginError" style="color:#e74c3c;text-align:center;margin-top:12px;min-height:20px"></p>
-</div>
-
-<div id="dashboardSection" class="hidden">
-  <div class="row" style="justify-content:space-between;margin-bottom:16px">
-    <h1>🛡️ ADMIN PANEL</h1>
-    <button class="btn-secondary" onclick="logout()">Đăng xuất</button>
+  <div id="loginSection" class="login-box">
+    <h2>🛡️ ADMIN LOGIN</h2>
+    <input type="text" id="user" placeholder="Tài khoản (admin)" value="admin">
+    <input type="password" id="pass" placeholder="Mật khẩu (admin123)" value="admin123">
+    <button onclick="login()">Đăng nhập</button>
+    <p id="err" style="color:red"></p>
   </div>
 
-  <div class="tabs">
-    <button class="tab active" onclick="switchTab('rooms', event)">📁 Phòng</button>
-    <button class="tab" onclick="switchTab('bans', event)">🚫 Danh sách ban</button>
-  </div>
-
-  <div id="tabRooms">
-    <h2>Danh sách phòng</h2>
-    <button class="btn-info" onclick="loadRooms()">🔄 Làm mới</button>
-    <div style="margin-top:12px;overflow-x:auto">
-      <table>
-        <thead>
-          <tr><th>ID Phòng</th><th>Chế độ</th><th>Số người</th><th>Đã bắt đầu</th><th>Hành động</th></tr>
-        </thead>
-        <tbody id="roomListBody">
-          <tr><td colspan="5" style="color:#666;text-align:center">Chưa có phòng nào</td></tr>
-        </tbody>
-      </table>
+  <div id="dashboardSection" class="hidden">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2>Danh sách phòng</h2>
+      <button onclick="logout()" style="width:100px;background:#7f8c8d">Đăng xuất</button>
     </div>
-
-    <h2 id="playerListTitle" class="hidden">Người chơi trong phòng <span id="currentRoomId"></span></h2>
-    <div id="playerListWrap" class="hidden" style="overflow-x:auto">
-      <table>
-        <thead>
-          <tr><th>ID</th><th>Tên</th><th>IP</th><th>Đội</th><th>Máu</th><th>Hành động</th></tr>
-        </thead>
-        <tbody id="playerTableBody"></tbody>
-      </table>
-    </div>
+    <button onclick="loadRooms()" style="width:150px;background:#3498db">Làm mới</button>
+    <table>
+      <thead><tr><th>ID Phòng</th><th>Số người</th><th>Hành động</th></tr></thead>
+      <tbody id="roomsBody"></tbody>
+    </table>
+    
+    <h3 id="titlePlayers" class="hidden" style="margin-top:30px">Người chơi trong phòng</h3>
+    <table id="playersTable" class="hidden">
+      <thead><tr><th>Tên</th><th>Đội</th><th>IP</th><th>Hành động</th></tr></thead>
+      <tbody id="playersBody"></tbody>
+    </table>
   </div>
-
-  <div id="tabBans" class="hidden">
-    <h2>Danh sách bị ban</h2>
-    <button class="btn-info" onclick="loadBans()">🔄 Làm mới</button>
-    <h3>Tên người chơi bị ban</h3>
-    <div class="ban-list" id="bannedUsernames"><em style="color:#666">Chưa có</em></div>
-    <h3>Địa chỉ IP bị ban</h3>
-    <div class="ban-list" id="bannedIPs"><em style="color:#666">Chưa có</em></div>
-  </div>
-
-  <div id="statusMsg" class="status hidden"></div>
 </div>
-
-</div>
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script>
-const SERVER_URL = window.location.origin.includes('localhost')
-  ? 'http://localhost:3001'
-  : window.location.origin;
-
-let socket = null;
-let adminToken = localStorage.getItem('adminToken');
-let currentRoomId = null;
+const SERVER_URL = window.location.origin;
+let socket, token = localStorage.getItem('adminToken');
 
 async function login() {
-  const username = document.getElementById('adminUsername').value.trim();
-  const pass = document.getElementById('adminPassword').value;
-  document.getElementById('loginError').textContent = '';
-
-  if (!username || !pass) {
-    document.getElementById('loginError').textContent = 'Nhập đủ tên và mật khẩu';
-    return;
-  }
-
+  const u = document.getElementById('user').value;
+  const p = document.getElementById('pass').value;
   try {
-    const r = await fetch(SERVER_URL + '/api/admin/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password: pass })
+    const res = await fetch(SERVER_URL + '/api/admin/login', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ username: u, password: p })
     });
-    const data = await r.json();
+    const data = await res.json();
     if (data.token) {
-      adminToken = data.token;
-      localStorage.setItem('adminToken', adminToken);
-      showDashboard();
+      token = data.token;
+      localStorage.setItem('adminToken', token);
+      showDash();
     } else {
-      document.getElementById('loginError').textContent = data.error || 'Đăng nhập thất bại';
+      document.getElementById('err').textContent = data.error;
     }
-  } catch (e) {
-    document.getElementById('loginError').textContent = 'Lỗi kết nối: ' + e.message;
-  }
+  } catch(e) { document.getElementById('err').textContent = "Lỗi kết nối server"; }
 }
 
 function logout() {
   localStorage.removeItem('adminToken');
-  adminToken = null;
-  if (socket) socket.disconnect();
-  document.getElementById('loginSection').classList.remove('hidden');
-  document.getElementById('dashboardSection').classList.add('hidden');
+  location.reload();
 }
 
-function showDashboard() {
+function showDash() {
   document.getElementById('loginSection').classList.add('hidden');
   document.getElementById('dashboardSection').classList.remove('hidden');
-  connectSocket();
+  socket = io(SERVER_URL, { auth: { token } });
+  socket.on('connect', () => loadRooms());
+  socket.on('admin:roomList', renderRooms);
+  socket.on('admin:playerList', renderPlayers);
+  socket.on('admin:success', (msg) => alert(msg));
 }
 
-function connectSocket() {
-  if (socket) socket.disconnect();
-  socket = io(SERVER_URL, { auth: { token: adminToken } });
+function loadRooms() { if(socket) socket.emit('admin:getRooms'); }
 
-  socket.on('connect', () => {
-    showStatus('Đã kết nối server với quyền admin.', 'ok');
-    loadRooms();
-  });
-
-  socket.on('connect_error', (err) => {
-    showStatus('Lỗi kết nối: ' + err.message, 'err');
-  });
-
-  socket.on('admin:roomList', renderRoomList);
-  socket.on('admin:playerList', ({ roomId, players }) => renderPlayerList(roomId, players));
-  socket.on('admin:bans', renderBans);
-  socket.on('admin:success', (msg) => { showStatus(msg, 'ok'); loadRooms(); });
-  socket.on('admin:error', (msg) => showStatus(msg, 'err'));
-
-  setInterval(() => { if (socket && socket.connected) loadRooms(); }, 5000);
-}
-
-function switchTab(tab, event) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  event.target.classList.add('active');
-  document.getElementById('tabRooms').classList.toggle('hidden', tab !== 'rooms');
-  document.getElementById('tabBans').classList.toggle('hidden', tab !== 'bans');
-  if (tab === 'bans') loadBans();
-}
-
-function loadRooms() {
-  if (socket) socket.emit('admin:getRooms');
-}
-
-function renderRoomList(rooms) {
-  const tbody = document.getElementById('roomListBody');
-  if (!rooms.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="color:#666;text-align:center">Chưa có phòng nào</td></tr>';
-    return;
-  }
-  tbody.innerHTML = rooms.map(r => `
+function renderRooms(list) {
+  document.getElementById('roomsBody').innerHTML = list.map(r => `
     <tr>
-      <td><code style="color:#2ecc71">${r.id}</code></td>
-      <td>${r.format}</td>
-      <td>${r.playerCount}/${r.maxPlayers}</td>
-      <td>${r.started ? '✅' : '⏳'}</td>
-      <td class="actions">
-        <button class="btn-info" onclick="viewPlayers('${r.id}')">👁 Xem</button>
-        <button class="btn-danger" onclick="closeRoom('${r.id}')">❌ Đóng</button>
-      </td>
+      <td><b>${r.id}</b></td>
+      <td>${r.count}</td>
+      <td><button class="btn-info" onclick="viewPlayers('${r.id}')">Xem</button></td>
     </tr>
   `).join('');
 }
 
 function viewPlayers(roomId) {
-  currentRoomId = roomId;
-  document.getElementById('currentRoomId').textContent = roomId;
-  document.getElementById('playerListTitle').classList.remove('hidden');
-  document.getElementById('playerListWrap').classList.remove('hidden');
   socket.emit('admin:getPlayers', roomId);
 }
 
-function renderPlayerList(roomId, players) {
-  document.getElementById('currentRoomId').textContent = roomId;
-  document.getElementById('playerListTitle').classList.remove('hidden');
-  document.getElementById('playerListWrap').classList.remove('hidden');
-
-  const tbody = document.getElementById('playerTableBody');
-  if (!players.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="color:#666;text-align:center">Phòng trống</td></tr>';
-    return;
-  }
-  tbody.innerHTML = players.map(p => `
+function renderPlayers({ roomId, players }) {
+  document.getElementById('titlePlayers').classList.remove('hidden');
+  document.getElementById('playersTable').classList.remove('hidden');
+  document.getElementById('titlePlayers').textContent = 'Người chơi trong phòng ' + roomId;
+  
+  document.getElementById('playersBody').innerHTML = players.map(p => `
     <tr>
-      <td><code>${p.id.substr(0,8)}</code></td>
-      <td>${escapeHtml(p.username)} ${p.isBanned ? '🚫' : ''}</td>
-      <td><code>${escapeHtml(p.ip || 'N/A')}</code></td>
+      <td>${p.username}</td>
       <td>${p.team === 'red' ? '🔴 Đỏ' : '🔵 Xanh'}</td>
-      <td>${p.hp}</td>
-      <td class="actions">
-        <button class="btn-warn" onclick="kickPlayer('${p.id}')">Kick</button>
-        <button class="btn-danger" onclick="banPlayer('${p.id}','${escapeJs(p.username)}','${escapeJs(p.ip||'')}')">Ban</button>
-        <button class="btn-info" onclick="grantHealth('${p.id}')">+HP</button>
-        <button class="btn-info" onclick="grantSpeed('${p.id}')">+Speed</button>
+      <td>${p.ip || 'N/A'}</td>
+      <td>
+        <button class="btn-info" onclick="grant('${p.id}')">+HP</button>
+        <button class="btn-danger" onclick="ban('${p.id}','${p.username}','${p.ip}')">Ban</button>
       </td>
     </tr>
   `).join('');
 }
 
-function kickPlayer(targetId) {
-  if (!confirm('Đuổi người chơi này khỏi server?')) return;
-  socket.emit('admin:kick', { targetId, reason: 'Bạn đã bị đuổi bởi admin.' });
-  setTimeout(() => viewPlayers(currentRoomId), 500);
+function ban(id, name, ip) {
+  if(confirm('Ban ' + name + '?')) socket.emit('admin:ban', { targetId: id, username: name, ip: ip });
+}
+function grant(id) {
+  socket.emit('admin:grant', { targetId: id, type: 'health', value: 100 });
 }
 
-function banPlayer(targetId, username, ip) {
-  if (!confirm(`BAN VĨNH VIỄN "${username}"?\nIP: ${ip}`)) return;
-  socket.emit('admin:ban', { roomId: currentRoomId, targetId, username, ip, reason: 'Bạn đã bị ban bởi admin.' });
-  setTimeout(() => viewPlayers(currentRoomId), 500);
-}
-
-function grantHealth(targetId) {
-  socket.emit('admin:grant', { targetId, type: 'health', value: 100 });
-}
-
-function grantSpeed(targetId) {
-  socket.emit('admin:grant', { targetId, type: 'speed', value: 2 });
-}
-
-function closeRoom(roomId) {
-  if (!confirm(`Đóng phòng ${roomId}?`)) return;
-  socket.emit('admin:closeRoom', roomId);
-}
-
-function loadBans() {
-  if (socket) socket.emit('admin:getBans');
-}
-
-function renderBans({ usernames, ips }) {
-  const uEl = document.getElementById('bannedUsernames');
-  const iEl = document.getElementById('bannedIPs');
-  uEl.innerHTML = usernames.length
-    ? usernames.map(u => `<div class="ban-item"><span>${escapeHtml(u)}</span><button class="btn-secondary" style="padding:3px 8px;font-size:11px" onclick="unban('${escapeJs(u)}','')">Gỡ</button></div>`).join('')
-    : '<em style="color:#666">Chưa có</em>';
-  iEl.innerHTML = ips.length
-    ? ips.map(ip => `<div class="ban-item"><span>${escapeHtml(ip)}</span><button class="btn-secondary" style="padding:3px 8px;font-size:11px" onclick="unban('','${escapeJs(ip)}')">Gỡ</button></div>`).join('')
-    : '<em style="color:#666">Chưa có</em>';
-}
-
-function unban(username, ip) {
-  socket.emit('admin:unban', { username, ip });
-  setTimeout(loadBans, 500);
-}
-
-function showStatus(msg, type) {
-  const el = document.getElementById('statusMsg');
-  el.textContent = msg;
-  el.className = 'status ' + type;
-  el.classList.remove('hidden');
-  clearTimeout(el._timer);
-  el._timer = setTimeout(() => el.classList.add('hidden'), 3000);
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-function escapeJs(s) {
-  return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-}
-
-(async function autoLogin() {
-  if (!adminToken) return;
-  try {
-    const r = await fetch(SERVER_URL + '/api/admin/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: adminToken })
-    });
-    const data = await r.json();
-    if (data.valid) showDashboard();
-    else { localStorage.removeItem('adminToken'); adminToken = null; }
-  } catch {}
-})();
+if (token) showDash();
 </script>
 </body>
 </html>
