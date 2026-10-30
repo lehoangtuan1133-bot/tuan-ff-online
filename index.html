@@ -1610,7 +1610,296 @@ addEventListener('blur', () => {
 switchWeapon(1);
 updateHud();
 animate();
+// ============================================================
+// KẾT NỐI SERVER ONLINE
+// ============================================================
+const SERVER_URL = window.location.origin.includes('localhost')
+  ? 'http://localhost:3001'
+  : window.location.origin;
 
+let onlineSocket = null;
+const remotePlayersOnline = {};
+let myUsername = 'Player_' + Math.floor(Math.random()*9000 + 1000);
+let isOnlineMode = false;
+
+function connectOnlineServer() {
+  if (typeof io === 'undefined') {
+    console.warn('Socket.IO chưa tải, chơi offline');
+    return;
+  }
+  onlineSocket = io(SERVER_URL, { auth: { username: myUsername } });
+
+  onlineSocket.on('connect', () => {
+    console.log('✅ Online:', onlineSocket.id);
+    isOnlineMode = true;
+    toast('Đã kết nối server online');
+  });
+
+  onlineSocket.on('connect_error', (err) => {
+    console.warn('❌ Lỗi kết nối:', err.message);
+    isOnlineMode = false;
+    if (err.message === 'BANNED_IP' || err.message === 'BANNED_USERNAME') {
+      alert('Bạn đã bị ban khỏi server!');
+    }
+  });
+
+  onlineSocket.on('roomState', (players) => {
+    // Xóa remote cũ
+    for (const id in remotePlayersOnline) {
+      scene.remove(remotePlayersOnline[id].mesh);
+      delete remotePlayersOnline[id];
+    }
+    roomState.redMembers = [];
+    roomState.blueMembers = [];
+    for (const id in players) {
+      const p = players[id];
+      if (p.team === 'red') roomState.redMembers.push(p.username);
+      else roomState.blueMembers.push(p.username);
+      if (id === onlineSocket.id) continue;
+      createRemotePlayerOnline(id, p);
+    }
+    if (roomState.inRoom) {
+      renderMembers();
+      updateWaitingText();
+    }
+  });
+
+  onlineSocket.on('playerMoved', ({ id, x, y, z, yaw }) => {
+    if (remotePlayersOnline[id]) {
+      remotePlayersOnline[id].targetPos.set(x, y, z);
+      remotePlayersOnline[id].targetYaw = yaw;
+    }
+  });
+
+  onlineSocket.on('playerLeft', (id) => {
+    if (remotePlayersOnline[id]) {
+      scene.remove(remotePlayersOnline[id].mesh);
+      delete remotePlayersOnline[id];
+    }
+  });
+
+  onlineSocket.on('playerShot', ({ id, origin, direction }) => {
+    drawBulletTrailOnline(origin, direction);
+  });
+
+  onlineSocket.on('banned', (msg) => {
+    alert(msg);
+    gameActive = false;
+    document.getElementById('deathOverlay').style.display = 'flex';
+    document.getElementById('deathOverlay').querySelector('h2').textContent = 'BẠN ĐÃ BỊ BAN';
+  });
+
+  onlineSocket.on('kicked', (msg) => {
+    alert(msg);
+    quitToLobby();
+  });
+
+  onlineSocket.on('admin:received', ({ type, value }) => {
+    if (type === 'health') {
+      health = Math.min(100, health + value);
+      updateHud();
+      toast('Admin đã hồi máu cho bạn!');
+    } else if (type === 'speed') {
+      isRunning = true;
+      toast('Admin đã tăng tốc cho bạn!');
+    }
+  });
+
+  onlineSocket.on('joinError', (msg) => toast(msg));
+
+  onlineSocket.on('matchStarted', () => {
+    document.getElementById('roomLobby').style.display = 'none';
+    startMatchOnline();
+  });
+
+  onlineSocket.on('roomClosed', (msg) => {
+    alert(msg);
+    leaveRoomOnline();
+  });
+}
+
+function createRemotePlayerOnline(id, data) {
+  if (remotePlayersOnline[id]) scene.remove(remotePlayersOnline[id].mesh);
+  const color = data.team === 'red' ? 0x1a3a8b : 0x8b1a1a;
+  const mesh = makeEnemy(color);
+  mesh.position.set(data.x || 0, data.y || 0, data.z || 8);
+  scene.add(mesh);
+  // Gắn tên
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(0, 0, 256, 64);
+  ctx.fillStyle = data.team === 'red' ? '#ff6b6b' : '#6bb6ff';
+  ctx.font = 'bold 32px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(data.username || id.substr(0,6), 128, 32);
+  const tex = new THREE.CanvasTexture(canvas);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
+  sprite.scale.set(2, 0.5, 1);
+  sprite.position.y = 2.8;
+  mesh.add(sprite);
+
+  remotePlayersOnline[id] = {
+    mesh,
+    targetPos: new THREE.Vector3(data.x || 0, data.y || 0, data.z || 8),
+    targetYaw: data.yaw || 0,
+    username: data.username
+  };
+}
+
+function drawBulletTrailOnline(origin, direction) {
+  const length = 25;
+  const end = new THREE.Vector3(
+    origin.x + direction.x * length,
+    origin.y + direction.y * length,
+    origin.z + direction.z * length
+  );
+  const geo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(origin.x, origin.y, origin.z),
+    end
+  ]);
+  const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xffdd00 }));
+  scene.add(line);
+  setTimeout(() => scene.remove(line), 120);
+}
+
+function joinRoomOnline(roomId) {
+  if (!onlineSocket || !onlineSocket.connected) {
+    toast('Chưa kết nối server online, chơi offline với bot');
+    joinRoomOffline(roomId);
+    return;
+  }
+  const teamSize = parseInt(pendingFormat[0]);
+  roomState = {
+    inRoom: true,
+    roomId,
+    myTeam: 'red',
+    format: pendingFormat,
+    teamSize,
+    redMembers: [myUsername],
+    blueMembers: []
+  };
+  onlineSocket.emit('joinRoom', {
+    roomId,
+    team: 'red',
+    format: pendingFormat,
+    username: myUsername
+  });
+  showRoomLobby();
+}
+
+function joinRoomOffline(roomId) {
+  // Chế độ cũ: dùng bot
+  const teamSize = parseInt(pendingFormat[0]);
+  roomState = {
+    inRoom: true,
+    roomId,
+    myTeam: Math.random() < 0.5 ? 'red' : 'blue',
+    format: pendingFormat,
+    teamSize,
+    redMembers: [],
+    blueMembers: []
+  };
+  const redBots = ['Bot_Red1','Bot_Red2','Bot_Red3','Bot_Red4'];
+  const blueBots = ['Bot_Blue1','Bot_Blue2','Bot_Blue3','Bot_Blue4'];
+  const myName = 'Bạn';
+  if (roomState.myTeam === 'red') {
+    roomState.redMembers.push(myName);
+    for (let i=0;i<teamSize-1;i++) roomState.redMembers.push(redBots[i]);
+    for (let i=0;i<teamSize;i++) roomState.blueMembers.push(blueBots[i]);
+  } else {
+    roomState.blueMembers.push(myName);
+    for (let i=0;i<teamSize-1;i++) roomState.blueMembers.push(blueBots[i]);
+    for (let i=0;i<teamSize;i++) roomState.redMembers.push(redBots[i]);
+  }
+  showRoomLobby();
+}
+
+function updateWaitingText() {
+  const total = roomState.redMembers.length + roomState.blueMembers.length;
+  const max = roomState.teamSize * 2;
+  const readyBtn = document.getElementById('readyBtn');
+  const waitingText = document.getElementById('waitingText');
+  if (total >= max) {
+    readyBtn.style.display = 'inline-block';
+    waitingText.textContent = '✅ Đã đủ ' + max + ' người! Nhấn SẴN SÀNG để bắt đầu.';
+    waitingText.style.color = '#2ecc71';
+  } else {
+    readyBtn.style.display = 'none';
+    waitingText.textContent = '⏳ Đang chờ... (' + total + '/' + max + ')';
+    waitingText.style.color = '#aaa';
+  }
+}
+
+function switchTeamOnline(newTeam) {
+  if (onlineSocket && onlineSocket.connected) {
+    onlineSocket.emit('switchTeam', { team: newTeam });
+  }
+}
+
+function leaveRoomOnline() {
+  if (onlineSocket && onlineSocket.connected) {
+    onlineSocket.emit('leaveRoom');
+  }
+  for (const id in remotePlayersOnline) {
+    scene.remove(remotePlayersOnline[id].mesh);
+    delete remotePlayersOnline[id];
+  }
+  roomState.inRoom = false;
+  roomState.roomId = null;
+  document.getElementById('roomLobby').style.display = 'none';
+  document.getElementById('lobby').style.display = 'flex';
+  document.getElementById('hudRoomId').textContent = '----';
+}
+
+function startMatchOnline() {
+  currentMode = 'solo';
+  document.getElementById('roomLobby').style.display = 'none';
+  document.getElementById('hud').style.display = 'block';
+  document.getElementById('actionBtns').style.display = 'flex';
+  document.getElementById('btn-run').style.display = 'flex';
+  document.getElementById('joystickBase').style.display = isMobile ? 'block' : 'none';
+  document.getElementById('deathOverlay').style.display = 'none';
+  gameActive = true;
+
+  if (isMobile) {
+    document.body.classList.add('mobile-mode');
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.2));
+    renderer.shadowMap.enabled = false;
+    sun.castShadow = false;
+  } else {
+    document.body.classList.remove('mobile-mode');
+    renderer.setPixelRatio(pcPixelRatio);
+    renderer.shadowMap.enabled = true;
+    sun.castShadow = true;
+  }
+
+  health = 100; kills = 0; isHealing = false;
+  player.position.set(0, 0, 8);
+  player.rotation.y = yaw = 0; pitch = -0.1;
+  enemies.forEach(e => scene.remove(e)); enemies = [];
+  glooWalls.forEach(w => { scene.remove(w.mesh); const i = colliders.indexOf(w.collider); if (i !== -1) colliders.splice(i, 1); });
+  glooWalls = []; glooCountEl.textContent = 0;
+  updateHud();
+  toast('BẮT ĐẦU TRẬN ĐẤU ONLINE!');
+}
+
+// Gửi vị trí lên server 20 lần/giây
+setInterval(() => {
+  if (!onlineSocket || !onlineSocket.connected || !gameActive || !roomState.inRoom) return;
+  onlineSocket.emit('playerUpdate', {
+    x: player.position.x,
+    y: player.position.y,
+    z: player.position.z,
+    yaw: yaw,
+    hp: health
+  });
+}, 50);
+
+// Tự động kết nối khi load
+connectOnlineServer();
 </script>
 </body>
 </html>
