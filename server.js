@@ -1,5 +1,5 @@
 // ============================================================
-// BATTLE ROYALE 3D - SERVER (có bảo mật admin)
+// BATTLE ROYALE 3D - SERVER (username + password admin)
 // ============================================================
 const express = require('express');
 const http = require('http');
@@ -11,7 +11,6 @@ const path = require('path');
 const app = express();
 const server = http.createServer(app);
 
-// CORS cho phép mọi nguồn (vì client có thể chạy ở localhost hoặc file://)
 const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] }
 });
@@ -20,81 +19,81 @@ const io = new Server(server, {
 // CẤU HÌNH BẢO MẬT
 // ============================================================
 const JWT_SECRET = process.env.JWT_SECRET || 'doi-chuoi-nay-thanh-bi-mat-that-dai-va-kho-doan-2024';
-// Hash của mật khẩu admin. Mật khẩu gốc là: admin123
-// Muốn đổi: chạy lệnh trong Node:
-//   node -e "console.log(require('bcryptjs').hashSync('mat-khau-moi', 10))"
-// rồi copy kết quả vào đây.
+
+// Tài khoản admin mặc định: admin / admin123
+// Đổi bằng biến môi trường trên Render: ADMIN_USERNAME, ADMIN_PASSWORD_HASH, JWT_SECRET
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+// Hash của "admin123"
 const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy';
 
 // ============================================================
 // DỮ LIỆU TRONG BỘ NHỚ
 // ============================================================
-const rooms = {};              // { roomId: { players: { socketId: {...} }, format, teamSize, started } }
+const rooms = {};
 const bannedUsernames = new Set();
 const bannedIPs = new Set();
-const admins = new Set();      // socketId của admin đang online
+const admins = new Set();
 
 // ============================================================
 // MIDDLEWARE EXPRESS
 // ============================================================
 app.use(express.json());
-app.use(express.static(__dirname)); // Cho phép truy cập admin.html, index.html
+app.use(express.static(__dirname));
 
 // ============================================================
 // API ĐĂNG NHẬP ADMIN
 // ============================================================
 app.post('/api/admin/login', async (req, res) => {
   try {
-    const { password } = req.body;
-    if (!password) return res.status(400).json({ error: 'Thiếu mật khẩu' });
-
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Thiếu tên đăng nhập hoặc mật khẩu' });
+    }
+    if (username !== ADMIN_USERNAME) {
+      return res.status(401).json({ error: 'Sai tên đăng nhập hoặc mật khẩu' });
+    }
     const valid = await bcrypt.compare(password, ADMIN_PASSWORD_HASH);
-    if (!valid) return res.status(401).json({ error: 'Sai mật khẩu' });
-
-    const token = jwt.sign({ role: 'admin', username: 'admin' }, JWT_SECRET, { expiresIn: '12h' });
-    res.json({ token });
+    if (!valid) {
+      return res.status(401).json({ error: 'Sai tên đăng nhập hoặc mật khẩu' });
+    }
+    const token = jwt.sign(
+      { role: 'admin', username: ADMIN_USERNAME },
+      JWT_SECRET,
+      { expiresIn: '12h' }
+    );
+    res.json({ token, username: ADMIN_USERNAME });
   } catch (e) {
     res.status(500).json({ error: 'Lỗi server: ' + e.message });
   }
 });
 
-// API kiểm tra token còn hạn
 app.post('/api/admin/verify', (req, res) => {
   const { token } = req.body;
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    res.json({ valid: true, role: decoded.role });
+    res.json({ valid: true, role: decoded.role, username: decoded.username });
   } catch {
     res.json({ valid: false });
   }
 });
 
 // ============================================================
-// SOCKET.IO - MIDDLEWARE XÁC THỰC
+// SOCKET.IO MIDDLEWARE
 // ============================================================
 io.use((socket, next) => {
   const ip = socket.handshake.address;
   const username = socket.handshake.auth.username;
 
-  // Chặn IP bị ban
-  if (bannedIPs.has(ip)) {
-    return next(new Error('BANNED_IP'));
-  }
-  // Chặn username bị ban
-  if (username && bannedUsernames.has(username)) {
-    return next(new Error('BANNED_USERNAME'));
-  }
+  if (bannedIPs.has(ip)) return next(new Error('BANNED_IP'));
+  if (username && bannedUsernames.has(username)) return next(new Error('BANNED_USERNAME'));
 
-  // Nếu có token admin thì gán quyền
   const token = socket.handshake.auth.token;
   if (token) {
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
       socket.user = decoded;
       socket.isAdmin = decoded.role === 'admin';
-    } catch (e) {
-      // Token sai, vẫn cho kết nối với tư cách guest
-    }
+    } catch (e) {}
   }
 
   socket.ip = ip;
@@ -102,19 +101,18 @@ io.use((socket, next) => {
 });
 
 // ============================================================
-// SOCKET.IO - XỬ LÝ SỰ KIỆN
+// SOCKET.IO EVENTS
 // ============================================================
 io.on('connection', (socket) => {
   console.log(`[+] Kết nối: ${socket.id} (IP: ${socket.ip})`);
 
   if (socket.isAdmin) {
     admins.add(socket.id);
-    console.log(`    → ADMIN đã kết nối: ${socket.id}`);
+    console.log(`    → ADMIN: ${socket.id}`);
   }
 
-  // ---------- NGƯỜI CHƠI THƯỜNG ----------
+  // ---------- NGƯỜI CHƠI ----------
 
-  // Vào phòng
   socket.on('joinRoom', ({ roomId, team, format, username }) => {
     if (!roomId || !/^\d{5}$/.test(roomId)) {
       return socket.emit('joinError', 'ID phòng không hợp lệ');
@@ -134,7 +132,6 @@ io.on('connection', (socket) => {
       return socket.emit('joinError', 'Phòng đã đầy');
     }
 
-    // Nếu đội chỉ định đầy, chuyển sang đội kia
     let assignedTeam = team;
     let teamCount = Object.values(room.players).filter(p => p.team === assignedTeam).length;
     if (teamCount >= room.teamSize) {
@@ -159,7 +156,6 @@ io.on('connection', (socket) => {
     console.log(`[ROOM ${roomId}] ${username} vào đội ${assignedTeam}`);
   });
 
-  // Người chơi gửi vị trí
   socket.on('playerUpdate', (data) => {
     const room = rooms[socket.roomId];
     if (!room || !room.players[socket.id]) return;
@@ -167,13 +163,11 @@ io.on('connection', (socket) => {
     socket.to(socket.roomId).emit('playerMoved', { id: socket.id, ...data });
   });
 
-  // Người chơi bắn
   socket.on('shoot', (data) => {
     if (!rooms[socket.roomId]) return;
     socket.to(socket.roomId).emit('playerShot', { id: socket.id, ...data });
   });
 
-  // Chuyển đội
   socket.on('switchTeam', ({ team }) => {
     const room = rooms[socket.roomId];
     if (!room || !room.players[socket.id]) return;
@@ -185,13 +179,11 @@ io.on('connection', (socket) => {
     io.to(socket.roomId).emit('roomState', room.players);
   });
 
-  // Yêu cầu cập nhật lại danh sách phòng
   socket.on('requestRoomState', () => {
     const room = rooms[socket.roomId];
     if (room) socket.emit('roomState', room.players);
   });
 
-  // Rời phòng
   socket.on('leaveRoom', () => {
     const room = rooms[socket.roomId];
     if (room) {
@@ -203,7 +195,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Bắt đầu trận
   socket.on('startMatch', () => {
     const room = rooms[socket.roomId];
     if (!room) return;
@@ -213,7 +204,6 @@ io.on('connection', (socket) => {
 
   // ---------- ADMIN ----------
 
-  // Lấy danh sách phòng đang có
   socket.on('admin:getRooms', () => {
     if (!socket.isAdmin) return;
     const roomList = Object.entries(rooms).map(([id, r]) => ({
@@ -226,7 +216,6 @@ io.on('connection', (socket) => {
     socket.emit('admin:roomList', roomList);
   });
 
-  // Lấy danh sách người chơi trong phòng
   socket.on('admin:getPlayers', (roomId) => {
     if (!socket.isAdmin) return;
     const room = rooms[roomId];
@@ -243,13 +232,11 @@ io.on('connection', (socket) => {
     socket.emit('admin:playerList', { roomId, players });
   });
 
-  // Ban người chơi
   socket.on('admin:ban', ({ roomId, targetId, username, ip, reason }) => {
     if (!socket.isAdmin) return socket.emit('admin:error', 'Không có quyền');
-    
     if (username) bannedUsernames.add(username);
     if (ip) bannedIPs.add(ip);
-    
+
     const targetSocket = io.sockets.sockets.get(targetId);
     if (targetSocket) {
       targetSocket.emit('banned', reason || 'Bạn đã bị ban bởi admin.');
@@ -259,7 +246,6 @@ io.on('connection', (socket) => {
     console.log(`[ADMIN] Ban: ${username} (IP ${ip})`);
   });
 
-  // Gỡ ban
   socket.on('admin:unban', ({ username, ip }) => {
     if (!socket.isAdmin) return;
     if (username) bannedUsernames.delete(username);
@@ -267,7 +253,6 @@ io.on('connection', (socket) => {
     socket.emit('admin:success', `Đã gỡ ban ${username || ip}`);
   });
 
-  // Kick (không ban vĩnh viễn)
   socket.on('admin:kick', ({ targetId, reason }) => {
     if (!socket.isAdmin) return socket.emit('admin:error', 'Không có quyền');
     const targetSocket = io.sockets.sockets.get(targetId);
@@ -278,23 +263,20 @@ io.on('connection', (socket) => {
     socket.emit('admin:success', 'Đã kick người chơi');
   });
 
-  // "Cho" người chơi thứ gì đó
   socket.on('admin:grant', ({ targetId, type, value }) => {
     if (!socket.isAdmin) return socket.emit('admin:error', 'Không có quyền');
     const targetSocket = io.sockets.sockets.get(targetId);
     if (!targetSocket) return socket.emit('admin:error', 'Người chơi không online');
-    
+
     targetSocket.emit('admin:received', { type, value });
-    
-    // Nếu là máu, cập nhật luôn trong room data
+
     const room = rooms[targetSocket.roomId];
     if (room && room.players[targetId] && type === 'health') {
       room.players[targetId].hp = Math.min(100, room.players[targetId].hp + value);
     }
-    socket.emit('admin:success', `Đã gửi ${type}=${value} cho ${targetId.substr(0,6)}`);
+    socket.emit('admin:success', `Đã gửi ${type}=${value}`);
   });
 
-  // Xem danh sách ban
   socket.on('admin:getBans', () => {
     if (!socket.isAdmin) return;
     socket.emit('admin:bans', {
@@ -303,7 +285,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Đóng phòng
   socket.on('admin:closeRoom', (roomId) => {
     if (!socket.isAdmin) return;
     const room = rooms[roomId];
@@ -317,20 +298,16 @@ io.on('connection', (socket) => {
     socket.emit('admin:success', `Đã đóng phòng ${roomId}`);
   });
 
-  // ---------- NGẮT KẾT NỐI ----------
   socket.on('disconnect', () => {
     console.log(`[-] Ngắt kết nối: ${socket.id}`);
     admins.delete(socket.id);
-
     const room = rooms[socket.roomId];
     if (room) {
       delete room.players[socket.id];
       io.to(socket.roomId).emit('roomState', room.players);
       io.to(socket.roomId).emit('playerLeft', socket.id);
-      // Xóa phòng nếu trống
       if (Object.keys(room.players).length === 0) {
         delete rooms[socket.roomId];
-        console.log(`[ROOM ${socket.roomId}] Đã xóa (trống)`);
       }
     }
   });
@@ -341,7 +318,7 @@ io.on('connection', (socket) => {
 // ============================================================
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Server chạy tại cổng ${PORT}`);
+  console.log(`✅ Server chạy cổng ${PORT}`);
   console.log(`   Game:  http://localhost:${PORT}/index.html`);
   console.log(`   Admin: http://localhost:${PORT}/admin.html`);
 });
