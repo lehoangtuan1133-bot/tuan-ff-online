@@ -316,9 +316,7 @@ io.on('connection', (socket) => {
 // ============================================================
 // KHỞI ĐỘNG
 // ============================================================
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 10000; // Render mặc định dùng cổng 10000
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Server chạy cổng ${PORT}`);
-  console.log(`   Game:  http://localhost:${PORT}/index.html`);
-  console.log(`   Admin: http://localhost:${PORT}/admin.html`);
+  console.log(`Server đang chạy trên cổng ${PORT}`);
 });
