@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TUAN FF · Admin Console</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+:root{color-scheme:dark;--bg:#080d16;--panel:#111c2b;--line:#26364b;--muted:#9aabc0;--gold:#f1c45b;--red:#d94d58;--green:#37c98b;--blue:#4c9cff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 15% 0%,#172943 0,transparent 40%),var(--bg);color:#edf3fb;font:14px/1.5 Inter,system-ui,Segoe UI,Arial,sans-serif}
+a{color:var(--gold);text-decoration:none}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px max(18px,calc((100% - 1180px)/2));border-bottom:1px solid var(--line);background:#08111ddd;position:sticky;top:0;z-index:2;backdrop-filter:blur(12px)}.brand{font-weight:900;letter-spacing:1.5px}.brand b{color:var(--gold)}.wrap{max-width:1180px;margin:26px auto;padding:0 18px}.muted{color:var(--muted)}.hidden{display:none!important}.card{background:linear-gradient(145deg,#142237,#0e1826);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 14px 40px #0003}.login{max-width:430px;margin:9vh auto}.login h1{margin:0 0 6px;font-size:25px}.eyebrow{color:var(--gold);font-size:11px;font-weight:900;letter-spacing:2px}input{width:100%;padding:12px 13px;border-radius:9px;border:1px solid #34465f;background:#091321;color:white;outline:none}input:focus{border-color:var(--gold)}button{border:0;border-radius:9px;padding:10px 13px;background:#244a70;color:#fff;font-weight:800;cursor:pointer}button:hover{filter:brightness(1.15)}button:disabled{opacity:.35;cursor:not-allowed}.gold{background:linear-gradient(120deg,#a87518,#e7bd53);color:#1a1408}.danger{background:#8f2f3c}.green{background:#17664c}.ghost{background:#26364a}.full{width:100%;margin-top:10px}.msg{min-height:22px;margin-top:10px;color:var(--gold)}.head{display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:18px}.head h1{margin:4px 0;font-size:27px}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.stat{padding:16px;border:1px solid var(--line);border-radius:13px;background:#111d2c}.stat span{display:block;color:var(--muted);font-size:12px}.stat strong{display:block;font-size:25px;margin-top:3px}.grid{display:grid;grid-template-columns:1.4fr 1fr;gap:14px}.card h2{font-size:15px;margin:0 0 12px}.row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.player,.room{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-top:1px solid #ffffff12}.player:first-child,.room:first-child{border-top:0}.playername{font-weight:800}.sub{font-size:12px;color:var(--muted)}.actions{display:flex;gap:5px;flex-wrap:wrap}.actions button{font-size:11px;padding:7px 9px}.pill{border:1px solid #34465f;border-radius:99px;padding:3px 8px;color:var(--muted);font-size:11px}.status{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:7px}.tools{display:grid;gap:10px}.toolrow{display:flex;gap:8px}.toolrow input{flex:1;min-width:0}.notice{font-size:12px;color:var(--muted);margin-top:12px}.empty{padding:18px 0;color:var(--muted)}@media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.top{padding:14px 18px}.head h1{font-size:22px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="brand">TUAN <b>FF</b> <span class="muted">/ ADMIN CONSOLE</span></div><a href="/">← Về game</a></header>
+<main class="wrap">
+<section id="login" class="card login">
+  <div class="eyebrow">QUẢN TRỊ MÁY CHỦ</div><h1>👑 Admin đăng nhập</h1>
+  <p class="muted">Mật khẩu được xác thực trực tiếp ở server. Không nhập mật khẩu tài khoản người chơi tại đây.</p>
+  <label for="adminPassword" class="sub">MẬT KHẨU ADMIN</label><input id="adminPassword" type="password" autocomplete="current-password" placeholder="Nhập ADMIN_PASSWORD">
+  <button id="loginBtn" class="gold full">ĐĂNG NHẬP QUẢN TRỊ</button><div id="loginMsg" class="msg"></div>
+  <div class="notice">Nếu không đăng nhập được, kiểm tra biến môi trường <b>ADMIN_PASSWORD</b> trong Render.</div>
+</section>
+<section id="dashboard" class="hidden">
+  <div class="head"><div><div class="eyebrow">CONTROL CENTER</div><h1>👑 Bảng điều khiển server</h1><div class="muted"><span class="status"></span>Đã kết nối với máy chủ game</div></div><div class="row"><button id="refresh" class="ghost">LÀM MỚI</button><button id="logout" class="danger">ĐĂNG XUẤT</button></div></div>
+  <div class="stats"><div class="stat"><span>NGƯỜI CHƠI ONLINE</span><strong id="playerCount">0</strong></div><div class="stat"><span>PHÒNG HOẠT ĐỘNG</span><strong id="roomCount">0</strong></div><div class="stat"><span>TRẠNG THÁI SERVER</span><strong id="serverStatus" style="font-size:17px">ĐANG MỞ</strong></div><div class="stat"><span>THỜI GIAN CHẠY</span><strong id="uptime">0s</strong></div></div>
+  <div class="grid">
+    <div class="card"><div class="row"><h2>👥 NGƯỜI CHƠI ĐANG ONLINE</h2><span class="pill" id="playerPill">0 người</span></div><div id="players" class="empty">Chưa có người chơi online.</div></div>
+    <div class="card"><h2>⚙️ ĐIỀU KHIỂN SERVER</h2><div class="tools"><div class="toolrow"><button id="lock" class="danger">🔒 KHÓA SERVER</button><button id="unlock" class="green">🔓 MỞ SERVER</button></div><div><div class="sub">THÔNG BÁO TOÀN SERVER</div><div class="toolrow" style="margin-top:6px"><input id="announcement" maxlength="180" placeholder="Nhập thông báo cho người chơi"><button id="sendAnnouncement" class="gold">GỬI</button></div></div><div><div class="sub">GỠ BAN THEO TÊN TÀI KHOẢN</div><div class="toolrow" style="margin-top:6px"><input id="unbanName" placeholder="Tên tài khoản"><button id="unban">GỠ BAN</button></div></div></div><div class="notice">Khóa server sẽ ngăn người chơi vào phòng mới. Người đang chơi không tự động bị ngắt kết nối.</div></div>
+    <div class="card" style="grid-column:1/-1"><div class="row"><h2>🚪 PHÒNG ĐANG HOẠT ĐỘNG</h2><span class="pill">Quản lý phòng</span></div><div id="rooms" class="empty">Chưa có phòng nào.</div></div>
+  </div>
+</section>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const socket = io({ transports: ['websocket','polling'] });
+  let authenticated = false;
+  let latest = null;
+  const setMsg = value => $('loginMsg').textContent = value || '';
+  function send(type, extra={}) {
+    if (!authenticated || !socket.connected) return alert('Chưa đăng nhập admin hoặc mất kết nối server.');
+    socket.emit('admin:action', {type, ...extra});
+  }
+  function fmtUptime(seconds) {
+    seconds = Math.max(0, Number(seconds)||0);
+    const h=Math.floor(seconds/3600), m=Math.floor(seconds%3600/60), s=Math.floor(seconds%60);
+    return h ? `${h}h ${m}m` : m ? `${m}m ${s}s` : `${s}s`;
+  }
+  function render(data) {
+    latest=data;
+    $('playerCount').textContent=data.players.length;
+    $('roomCount').textContent=data.rooms.length;
+    $('playerPill').textContent=`${data.players.length} người`;
+    $('serverStatus').textContent=data.locked?'ĐANG KHÓA':'ĐANG MỞ';
+    $('serverStatus').style.color=data.locked?'#ff7c86':'#37c98b';
+    $('uptime').textContent=fmtUptime(data.uptime);
+    $('lock').disabled=!!data.locked; $('unlock').disabled=!data.locked;
+    const p=$('players');p.replaceChildren();
+    if(!data.players.length)p.textContent='Chưa có người chơi online.';
+    data.players.forEach(player=>{
+      const row=document.createElement('div');row.className='player';
+      const info=document.createElement('div');
+      const name=document.createElement('div');name.className='playername';name.textContent=player.username;
+      const sub=document.createElement('div');sub.className='sub';sub.textContent=`Phòng: ${player.roomId} · Đội: ${player.team} · ID: ${String(player.id).slice(0,7)}`;
+      info.append(name,sub);
+      const actions=document.createElement('div');actions.className='actions';
+      [['HỒI MÁU','heal',''],['TĂNG TỐC','speed',''],['KICK','kick','danger'],['BAN','ban','danger']].forEach(([label,type,cls])=>{
+        const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;
+        b.onclick=()=>{if((type==='kick'||type==='ban')&&!confirm(`${type==='ban'?'Ban':'Kick'} tài khoản ${player.username}?`))return;send(type,{id:player.id});};actions.append(b);
+      });row.append(info,actions);p.append(row);
+    });
+    const r=$('rooms');r.replaceChildren();
+    if(!data.rooms.length)r.textContent='Chưa có phòng nào.';
+    data.rooms.forEach(room=>{
+      const row=document.createElement('div');row.className='room';
+      const info=document.createElement('div');const title=document.createElement('b');title.textContent=`Phòng ${room.id}`;
+      const sub=document.createElement('div');sub.className='sub';sub.textContent=`${room.count}/${room.capacity} người · ${room.started?'Đang đấu':'Đang chờ'} · ${room.format}`;info.append(title,sub);
+      const b=document.createElement('button');b.className='danger';b.textContent='ĐÓNG PHÒNG';b.onclick=()=>{if(confirm(`Đóng phòng ${room.id}?`))send('closeRoom',{roomId:room.id});};row.append(info,b);r.append(row);
+    });
+  }
+  $('loginBtn').onclick=()=>{
+    if(!socket.connected){setMsg('Chưa kết nối được server. Hãy kiểm tra Render.');return;}
+    const password=$('adminPassword').value;
+    if(!password){setMsg('Nhập mật khẩu admin.');return;}
+    setMsg('Đang xác thực...');socket.emit('admin:login',{password});
+  };
+  $('adminPassword').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click();});
+  socket.on('connect',()=>{if(!authenticated)setMsg('Đã kết nối server. Nhập mật khẩu admin để tiếp tục.');});
+  socket.on('connect_error',()=>setMsg('Không thể kết nối server. Kiểm tra trạng thái Render.'));
+  socket.on('admin:authResult',result=>{
+    setMsg(result.message);
+    if(result.ok){authenticated=true;$('login').classList.add('hidden');$('dashboard').classList.remove('hidden');$('adminPassword').value='';}
+  });
+  socket.on('admin:state',data=>{if(authenticated)render(data);});
+  socket.on('admin:error',message=>alert(message));
+  socket.on('disconnect',()=>{authenticated=false;$('dashboard').classList.add('hidden');$('login').classList.remove('hidden');setMsg('Mất kết nối server. Hãy đăng nhập lại khi kết nối được khôi phục.');});
+  $('lock').onclick=()=>{if(confirm('Khóa server, ngăn người chơi mới vào phòng?'))send('lock');};
+  $('unlock').onclick=()=>send('unlock');
+  $('sendAnnouncement').onclick=()=>{const message=$('announcement').value.trim();if(message){send('announce',{message});$('announcement').value='';}};
+  $('unban').onclick=()=>{const username=$('unbanName').value.trim();if(username){send('unban',{username});$('unbanName').value='';}};
+  $('logout').onclick=()=>{socket.emit('admin:logout');authenticated=false;latest=null;$('dashboard').classList.add('hidden');$('login').classList.remove('hidden');setMsg('Bạn đã đăng xuất khỏi bảng quản trị.');};
+  $('refresh').onclick=()=>{if(authenticated)socket.emit('admin:refresh');};
+})();
+</script>
+</body></html>
